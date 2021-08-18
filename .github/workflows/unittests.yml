@@ -1,18 +1,17 @@
-name: Lint
-on: [push, pull_request]
+name: Run Unit Tests
+on: [push]
 jobs:
-  lint:
-    name: Lint
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python 3.9
         uses: actions/setup-python@v1
         with:
           python-version: "3.9"
-
-      - uses: actions/checkout@v1
-
-      - name: Lint
+      - uses: actions/checkout@master
+      - name: Run Unit Test
         run: |
+          pip install -r requirements.txt
           pip install -r requirements-test.txt
-          flake8 src/ --ignore=E501
+          cd test
+          pytest .
