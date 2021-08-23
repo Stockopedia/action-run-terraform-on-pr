@@ -1,13 +1,22 @@
-name: "Python Container Action Template"
-description: "Get started with Python Container actions"
-author: "Jacob Tomlinson"
+name: "Stockopedia's Terraform runner"
+description: "GitHub Action that expores the Stockopedia Terraform stack, uses the changed file list in the current PR, and runs `terraform plan` on each changed stack."
+author: "Andrei Ruse"
 inputs:
-  myInput:
-    description: "Input to use"
-    default: "world"
+  CHANGED_FILE_LIST:
+    description: "A comma separated list of file paths, indicating files that have changed in the current PR. If all files in the repository are passed in, this will re-plan the entire stack."
+    default: "[]"
+    required: true
+  BASE_DIRECTORY:
+    description: "The base directory of the terraform project. Used to look up the ./environments/ folder under it."
+    default: "/app"
+    required: false
+  DISABLE_NON_AWS_CHANGES:
+    description: "Can have any value. If present, only aws provided layers will be considered by terraform."
+    default: ""
+    required: false
 outputs:
-  myOutput:
-    description: "Output from the action"
+  terraform_plan_output:
+    description: "Output from the Terraform Plan action(s). If multiple plans ran, the inputs will be separated by 2 line separators."
 runs:
   using: "docker"
   image: "Dockerfile"
