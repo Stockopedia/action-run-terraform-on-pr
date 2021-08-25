@@ -100,6 +100,9 @@ def main():
     # Input: base folder of the terraform folder, to lookup all available providers/environments/layers
     base_directory: str = os.getenv("INPUT_BASE_DIRECTORY", default="/app")
 
+    # This determines if the Terraform plan should also be applied after the plan step is complete. This should only be triggered after approvals & other checks are completed.
+    terraform_apply_mode: bool = bool(os.getenv("INPUT_APPLY_MODE", default="false"))
+
     # Filter by whitelist folder, e.g.: layers/*
     relevant_changed_files: List[str] = filter_changed_files_to_relevant_folders(changed_files,
                                                                                  RELEVANT_TERRAFORM_FOLDERS)
@@ -117,6 +120,7 @@ def main():
     # 		-backend-config="key=tf-$(layer).tfstate"
     # 	terraform -chdir=layers/$(layer) plan --var-file=../../environments/$(provider)/$(env)/$(layer)/variables.tfvars
     terraform_plan_output_text: str = ""
+    terraform_apply_output_text: str = ""
     terraform_error_output_text: str = ""
     for parameter_set in terraform_parameter_sets:
         chdir_path = "%s/layers/%s" % (base_directory, parameter_set.layer)
@@ -134,7 +138,15 @@ def main():
         terraform_plan_output_text += plan_return[1] + os.linesep + os.linesep
         terraform_error_output_text += plan_return[2] + os.linesep + os.linesep
 
+        if terraform_apply_mode:
+            # 	terraform -chdir=layers/$(layer) apply --var-file=../../environments/$(provider)/$(env)/$(layer)/variables.tfvars
+            apply_return: Tuple[Any, str, str] = terraform.apply(no_color=True, input=False, var_file=tf_plan_var_file_path)
+            print(apply_return[1])
+            terraform_apply_output_text += apply_return[1] + os.linesep + os.linesep
+            terraform_error_output_text += apply_return[2] + os.linesep + os.linesep
+
     print(f"::set-output name=terraform_plan_output::{terraform_plan_output_text}")
+    print(f"::set-output name=terraform_apply_output::{terraform_apply_output_text}")
     print(f"::set-output name=terraform_error_output::{terraform_error_output_text}")
 
 
