@@ -154,13 +154,19 @@ def main():
         print(f"Running Terraform Init for the following tfvars: {tf_vars}")
         init_return: Tuple[Any, str, str] = terraform.init(backend=True, reconfigure=True,
                                                            backend_config=tf_vars)
+        print("::group::Terraform init output")
         print(init_return[1])
+        print("::endgroup::")
+
         terraform_error_output_text += init_return[2] + os.linesep + os.linesep
 
         tf_plan_var_file_path: str = "%s/environments/%s/%s/%s/variables.tfvars" % (base_directory, parameter_set.provider, parameter_set.environment, parameter_set.layer)
         print(f"Running Terraform plan for the following tfvars: {tf_plan_var_file_path}")
         plan_return: Tuple[Any, str, str] = terraform.plan(var_file=tf_plan_var_file_path)
         print(plan_return[1])
+        print("::group::Terraform plan output")
+        print(plan_return[1])
+        print("::endgroup::")
         terraform_plan_output_text += plan_return[1] + os.linesep + os.linesep
         terraform_error_output_text += plan_return[2] + os.linesep + os.linesep
 
@@ -168,7 +174,9 @@ def main():
             # 	terraform -chdir=layers/$(layer) apply --var-file=../../environments/$(provider)/$(env)/$(layer)/variables.tfvars
             print(f"Running Terraform apply for the following tfvars: {tf_plan_var_file_path}")
             apply_return: Tuple[Any, str, str] = terraform.apply(var_file=tf_plan_var_file_path)
+            print("::group::Terraform apply output")
             print(apply_return[1])
+            print("::endgroup::")
             terraform_apply_output_text += apply_return[1] + os.linesep + os.linesep
             terraform_error_output_text += apply_return[2] + os.linesep + os.linesep
         else:
