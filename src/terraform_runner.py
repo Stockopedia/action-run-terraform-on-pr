@@ -128,10 +128,11 @@ def main():
     print(f"Detected {len(relevant_changed_files)} changed file(s) relevant to Terraform: {relevant_changed_files}")
 
     available_parameter_sets: List[TerraformParameterSet] = list_all_available_parameter_sets(base_directory=base_directory)
+    print(f"Available TF stack(s) in the whole repository (useful to confirm the repo state): {available_parameter_sets}")
     # - Build set of (env / provider / layer)
     # - If env['disable-non-aws'] is present, it will not include any non-aws provider
     terraform_parameter_sets: Set[TerraformParameterSet] = extract_terraform_parameter_sets(relevant_changed_files, available_parameter_sets, ignore_non_aws_changes)
-    print(f"Transformed the changed file(s) into the following layer(s)/stack(s) that need to be planned: {terraform_parameter_sets}")
+    print(f"Transformed the changed file(s) into the following TF stack(s) that need to be planned: {terraform_parameter_sets}")
 
     # - For every mix in step 2, run
     # 	terraform -chdir=layers/$(layer) init \
@@ -145,6 +146,7 @@ def main():
     terraform_error_output_text: str = ""
     for parameter_set in terraform_parameter_sets:
         chdir_path = "%s/layers/%s" % (base_directory, parameter_set.layer)
+        print(f"Setting the terraform working path (chdir) to {chdir_path}")
         terraform = Terraform(working_dir=chdir_path)
         tf_layer_specific_tfvars_path: str = "%s/environments/%s/%s/backend.tfvars" % (base_directory, parameter_set.provider, parameter_set.environment)
         tf_layer_specific_key_tfstate_path: str = "key=tf-%s.tfstate" % parameter_set.layer
