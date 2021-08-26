@@ -1,7 +1,7 @@
 name: Run Unit Tests
 on: [push]
 jobs:
-  build:
+  unittests:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python 3.9
