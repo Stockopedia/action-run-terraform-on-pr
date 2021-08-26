@@ -163,7 +163,6 @@ def main():
         tf_plan_var_file_path: str = "%s/environments/%s/%s/%s/variables.tfvars" % (base_directory, parameter_set.provider, parameter_set.environment, parameter_set.layer)
         print(f"Running Terraform plan for the following tfvars: {tf_plan_var_file_path}")
         plan_return: Tuple[Any, str, str] = terraform.plan(var_file=tf_plan_var_file_path)
-        print(plan_return[1])
         print("::group::Terraform plan output")
         print(plan_return[1])
         print("::endgroup::")
