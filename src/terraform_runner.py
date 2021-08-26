@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from collections import namedtuple
@@ -103,8 +104,8 @@ def main():
         raise Exception("Could not find INPUT_CHANGED_FILE_LIST set in the environment variables.")
 
     # - Take input from https://github.com/Stockopedia/action-get-changed-files
-    # Example: [.github/workflows/lint.yaml,.github/workflows/terraform.yaml,layers/rds-data-platform-bcp-db/main.tf]
-    changed_files: List[str] = os.getenv("INPUT_CHANGED_FILE_LIST").split(",")
+    # Example: [".github/workflows/lint.yaml",".github/workflows/terraform.yaml",".github/workflows/terraform_apply.yaml","layers/rds-data-platform-bcp-db/main.tf"]
+    changed_files: List[str] = json.loads(os.getenv("INPUT_CHANGED_FILE_LIST"))
     # Input: base folder of the terraform folder, to lookup all available providers/environments/layers
     base_directory: str = os.getenv("INPUT_BASE_DIRECTORY", default="/app")
 
