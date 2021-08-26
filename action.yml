@@ -14,9 +14,17 @@ inputs:
     description: "Can have any value. If present, only aws provided layers will be considered by terraform."
     default: ""
     required: false
+  APPLY_MODE:
+    description: "Determines whether the script should also run 'terraform apply' after the 'terraform plan' step. Disabled by default."
+    default: "false"
+    required: false
 outputs:
   terraform_plan_output:
-    description: "Output from the Terraform Plan action(s). If multiple plans ran, the inputs will be separated by 2 line separators."
+    description: "Output from the Terraform Plan action(s). If multiple plans ran, the plans will be separated by 2 line separators."
+  terraform_apply_output:
+    description: "Output from the Terraform Apply action(s). This will be empty if APPLY_MODE was not set to true. If multiple plans ran, the plans will be separated by 2 line separators."
+  terraform_error_output:
+    description: "Error outputs from any of the steps (Init, Plan, Apply). If multiple plans ran, the plans will be separated by 2 line separators."
 runs:
   using: "docker"
   image: "Dockerfile"
