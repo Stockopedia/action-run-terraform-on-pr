@@ -182,6 +182,10 @@ def main():
         else:
             print("APPLY_MODE is disabled, skipping the Terraform apply step")
 
+    terraform_plan_output_text = terraform_plan_output_text.replace("\n", "%0A")
+    terraform_apply_output_text = terraform_apply_output_text.replace("\n", "%0A")
+    terraform_error_output_text = terraform_error_output_text.replace("\n", "%0A")
+
     print(f"::set-output name=terraform_plan_output::{terraform_plan_output_text}")
     print(f"::set-output name=terraform_apply_output::{terraform_apply_output_text}")
     print(f"::set-output name=terraform_error_output::{terraform_error_output_text}")
