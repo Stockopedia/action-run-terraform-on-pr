@@ -193,6 +193,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sample_input: List[str] = [".github/workflows/lint.yaml", ".github/workflows/terraform.yaml",
-                               "layers/rds-data-platform-bcp-db/main.tf"]
     main()
