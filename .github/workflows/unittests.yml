@@ -9,6 +9,10 @@ jobs:
         with:
           python-version: "3.9"
       - uses: actions/checkout@master
+      - name: Check Python typing using MyPy
+        run: |
+          pip install mypy
+          mypy src/
       - name: Run Unit Test
         run: |
           pip install -r requirements.txt

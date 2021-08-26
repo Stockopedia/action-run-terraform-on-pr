@@ -30,29 +30,37 @@ def extract_terraform_parameter_sets(file_list: List[str], available_parameter_s
         environment_with_layer_path_search = re.search(r"^[./]*environments/([\w-]+)/([\w-]+)/([\w-]+)/.+", file_path, re.IGNORECASE)
         environment_without_layer_path_search = re.search(r"^[./]*environments/([\w-]+)/([\w-]+)/[\w]+.tf[\w]*.+", file_path, re.IGNORECASE)
 
+        param_set_to_add: Optional[TerraformParameterSet] = None
+        provider: Optional[str] = None
+        environment: Optional[str] = None
+        layer: Optional[str] = None
+
         if layer_path_search:
-            terraform_parameter_sets.add(extract_parameter_set_for_input(ignore_non_aws_changes, available_parameter_sets, None, None, layer_path_search.group(1)))
+            param_set_to_add = extract_parameter_set_for_input(ignore_non_aws_changes, available_parameter_sets, None, None, layer_path_search.group(1))
 
         elif environment_with_layer_path_search:
-            provider: str = environment_with_layer_path_search.group(1)
-            environment: str = environment_with_layer_path_search.group(2)
-            layer: str = environment_with_layer_path_search.group(3)
-            terraform_parameter_sets.add(extract_parameter_set_for_input(ignore_non_aws_changes, available_parameter_sets, provider, environment, layer))
+            provider = environment_with_layer_path_search.group(1)
+            environment = environment_with_layer_path_search.group(2)
+            layer = environment_with_layer_path_search.group(3)
+            param_set_to_add = extract_parameter_set_for_input(ignore_non_aws_changes, available_parameter_sets, provider, environment, layer)
 
         elif environment_without_layer_path_search:
-            provider: str = environment_without_layer_path_search.group(1)
-            environment: str = environment_without_layer_path_search.group(2)
-            layer: Optional[str] = None
-            terraform_parameter_sets.add(extract_parameter_set_for_input(ignore_non_aws_changes, available_parameter_sets, provider, environment, layer))
+            provider = environment_without_layer_path_search.group(1)
+            environment = environment_without_layer_path_search.group(2)
+            layer = None
+            param_set_to_add = extract_parameter_set_for_input(ignore_non_aws_changes, available_parameter_sets, provider, environment, layer)
+
+        if param_set_to_add:
+            terraform_parameter_sets.add(param_set_to_add)
 
     return terraform_parameter_sets
 
 
 def extract_parameter_set_for_input(ignore_non_aws_changes: bool, available_parameter_sets: List[TerraformParameterSet], provider: Optional[str], environment: Optional[str], layer: Optional[str]) -> Optional[TerraformParameterSet]:
     # We perform this step in case we only have partial inputs. We'll use that partial input and identify a TerraformParameterSet which matches
-    parameter_set_for_given_layer: TerraformParameterSet = find_suitable_parameter_set_for_input(available_parameter_sets=available_parameter_sets, provider=provider, environment=environment, layer=layer)
+    parameter_set_for_given_layer: Optional[TerraformParameterSet] = find_suitable_parameter_set_for_input(available_parameter_sets=available_parameter_sets, provider=provider, environment=environment, layer=layer)
     # If we need to ignore non-aws changes, only let aws ones through. Otherwise, let all.
-    if (ignore_non_aws_changes and parameter_set_for_given_layer.provider.lower() == "aws") or not ignore_non_aws_changes:
+    if (ignore_non_aws_changes and parameter_set_for_given_layer and parameter_set_for_given_layer.provider.lower() == "aws") or not ignore_non_aws_changes:
         return parameter_set_for_given_layer
     else:
         return None
