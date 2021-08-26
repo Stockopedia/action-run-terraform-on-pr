@@ -12,7 +12,7 @@ jobs:
       - name: Check Python typing using MyPy
         run: |
           pip install mypy
-          mypy src/
+          mypy --install-types --non-interactive --ignore-missing-imports src/
       - name: Run Unit Test
         run: |
           pip install -r requirements.txt
