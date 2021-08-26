@@ -113,7 +113,7 @@ def main():
         exit(1)
 
     # Input: base folder of the terraform folder, to lookup all available providers/environments/layers
-    base_directory: str = os.getenv("INPUT_BASE_DIRECTORY", default="/app")
+    base_directory: str = os.getenv("INPUT_BASE_DIRECTORY", default="/github/workspace")
 
     # This determines if the Terraform plan should also be applied after the plan step is complete. This should only be triggered after approvals & other checks are completed.
     terraform_apply_mode: bool = os.getenv("INPUT_APPLY_MODE", default="False") == "True"
@@ -145,6 +145,8 @@ def main():
     terraform_apply_output_text: str = ""
     terraform_error_output_text: str = ""
     for parameter_set in terraform_parameter_sets:
+        os.environ["AWS_PROFILE"] = str(parameter_set.environment).lower()
+
         chdir_path = "%s/layers/%s" % (base_directory, parameter_set.layer)
         print(f"Setting the terraform working path (chdir) to {chdir_path}")
         terraform = Terraform(working_dir=chdir_path)
