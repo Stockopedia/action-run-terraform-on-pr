@@ -11,7 +11,7 @@ from src.GithubActionException import GithubActionException
 
 RELEVANT_TERRAFORM_FOLDERS: List[str] = ["layers", "environments"]
 TerraformParameterSet = namedtuple("TerraformParameterSet", ["provider", "environment", "layer"])
-AwsCredentialsForEnvironment = namedtuple("AwsCredentials", ["api_key", "api_secret", "api_region"])
+AwsCredentialsForEnvironment = namedtuple("AwsCredentialsForEnvironment", ["api_key", "api_secret", "api_region"])
 
 
 # Sample inputs (actual values replaced by $(placeholder))
@@ -112,8 +112,8 @@ def extract_aws_credentials(environment_vars: Dict[str, Any] = os.environ.__dict
     for key in environment_vars.keys():
         if not key.upper().startswith("AWS__"):
             continue
-        aws_key_match: Match = re.search("^AWS__KEY__(\\w+)", key, re.IGNORECASE)
-        aws_secret_match: Match = re.search("^AWS__SECRET__(\\w+)", key, re.IGNORECASE)
+        aws_key_match: Optional[Match] = re.search("^AWS__KEY__(\\w+)", key, re.IGNORECASE)
+        aws_secret_match: Optional[Match] = re.search("^AWS__SECRET__(\\w+)", key, re.IGNORECASE)
         if aws_key_match is not None:
             env_from_aws_key = aws_key_match.group(1)
             if env_from_aws_key in credentials:
