@@ -1,8 +1,9 @@
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict, Tuple
 from unittest import TestCase
 
 from src import terraform_runner
-from src.terraform_runner import TerraformParameterSet
+from src.GithubActionException import GithubActionException
+from src.terraform_runner import TerraformParameterSet, extract_aws_credentials
 
 
 class Test(TestCase):
@@ -37,3 +38,38 @@ class Test(TestCase):
         available_parameter_sets.append(TerraformParameterSet("aws", "test", "app-database"))
         output: Optional[TerraformParameterSet] = terraform_runner.find_suitable_parameter_set_for_input(available_parameter_sets, "aws", "test", None)
         self.assertEqual(output, TerraformParameterSet("aws", "test", "app-database"))
+
+    def test_extract_aws_credentials_empty_env_vars(self):
+        extracted_aws_credentials: Dict[str, Tuple[str, str, str]] = extract_aws_credentials({})
+        self.assertEqual({}, extracted_aws_credentials)
+
+    def test_extract_aws_credentials_correct_env_vars(self):
+        correct_env_vars = {
+            "AWS__KEY__PROD": "test-key",
+            "AWS__SECRET__PROD": "test-secret",
+            "AWS__REGION__PROD": "test-region-1",
+            "AWS__KEY__DEV": "test-key2",
+            "AWS__SECRET__DEV": "test-secret2",
+            "AWS__REGION__DEV": "test-region-1",
+        }
+        extracted_aws_credentials: Dict[str, Tuple[str, str, str]] = extract_aws_credentials(correct_env_vars)
+        expected_aws_credentials = {
+            "PROD": ("test-key", "test-secret", "test-region-1"),
+            "DEV": ("test-key2", "test-secret2", "test-region-1")
+        }
+        self.assertEqual(expected_aws_credentials, extracted_aws_credentials)
+
+    def test_extract_aws_credentials_missing_env_vars(self):
+        env_vars_missing_secret = {
+            "AWS__KEY__PROD": "test-key",
+            "AWS__REGION__PROD": "test-region-1"
+        }
+        self.assertRaises(GithubActionException, extract_aws_credentials, env_vars_missing_secret)
+
+    def test_extract_aws_credentials_missing_region_env_vars(self):
+        env_vars_missing_region = {
+            "AWS__KEY__PROD": "test-key",
+            "AWS__SECRET__PROD": "test-secret",
+            "AWS__REGION__DEV": "test-region-1"
+        }
+        self.assertRaises(GithubActionException, extract_aws_credentials, env_vars_missing_region)
