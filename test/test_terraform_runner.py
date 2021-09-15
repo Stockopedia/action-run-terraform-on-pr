@@ -19,7 +19,7 @@ class Test(TestCase):
         output: Set[TerraformParameterSet] = terraform_runner.extract_terraform_parameter_sets(
             ["./environments/aws/prod/backend.tfvars",
              "environments/aws/dev/app-database/variables.tfvars", "layers/app-database/main.tf"],
-            available_parameter_sets)
+            available_parameter_sets, False)
         # For 3 inputs, we're getting 2 outputs, since the results are de-duplicated
         self.assertCountEqual(output, [
             TerraformParameterSet("aws", "dev", "app-database"),

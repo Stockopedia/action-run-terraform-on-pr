@@ -1,6 +1,8 @@
+import json
 import os
 import re
 from collections import namedtuple
+from json import JSONDecodeError
 from typing import List, Tuple, Any, Optional, Iterator, Set
 
 from python_terraform import Terraform
@@ -22,8 +24,7 @@ def filter_changed_files_to_relevant_folders(changed_files: List[str], relevant_
     return relevant_changed_files
 
 
-def extract_terraform_parameter_sets(file_list: List[str], available_parameter_sets: List[TerraformParameterSet]) -> Set[TerraformParameterSet]:
-    ignore_non_aws_changes: bool = "INPUT_DISABLE_NON_AWS_CHANGES" in os.environ
+def extract_terraform_parameter_sets(file_list: List[str], available_parameter_sets: List[TerraformParameterSet], ignore_non_aws_changes: bool) -> Set[TerraformParameterSet]:
     terraform_parameter_sets: Set[TerraformParameterSet] = set()
     for file_path in file_list:
         layer_path_search = re.search(r"^[./]*layers/([\w-]+)/?.+", file_path, re.IGNORECASE)
@@ -103,22 +104,35 @@ def main():
         raise Exception("Could not find INPUT_CHANGED_FILE_LIST set in the environment variables.")
 
     # - Take input from https://github.com/Stockopedia/action-get-changed-files
-    # Example: [.github/workflows/lint.yaml,.github/workflows/terraform.yaml,layers/rds-data-platform-bcp-db/main.tf]
-    changed_files: List[str] = os.getenv("INPUT_CHANGED_FILE_LIST").split(",")
+    # Example: [".github/workflows/lint.yaml",".github/workflows/terraform.yaml",".github/workflows/terraform_apply.yaml","layers/rds-data-platform-bcp-db/main.tf"]
+    changed_files: List[str] = []
+    try:
+        changed_files = json.loads(os.getenv("INPUT_CHANGED_FILE_LIST"))
+    except JSONDecodeError:
+        print("ERROR: Unable to deserialise input JSON for variable CHANGED_FILE_LIST.")
+        exit(1)
+
     # Input: base folder of the terraform folder, to lookup all available providers/environments/layers
-    base_directory: str = os.getenv("INPUT_BASE_DIRECTORY", default="/app")
+    base_directory: str = os.getenv("INPUT_BASE_DIRECTORY", default="/github/workspace")
 
     # This determines if the Terraform plan should also be applied after the plan step is complete. This should only be triggered after approvals & other checks are completed.
-    terraform_apply_mode: bool = bool(os.getenv("INPUT_APPLY_MODE", default="false"))
+    terraform_apply_mode: bool = os.getenv("INPUT_APPLY_MODE", default="False") == "True"
 
+    # This determines if the Terraform plan/apply should include non-AWS providers. This may be useful if the Terraform runner has access to the AWS account, but not to the rest of the stack (EC2, RDS)
+    ignore_non_aws_changes: bool = "INPUT_DISABLE_NON_AWS_CHANGES" in os.environ
+
+    print(f"Running the script for file(s): {changed_files}")
     # Filter by whitelist folder, e.g.: layers/*
     relevant_changed_files: List[str] = filter_changed_files_to_relevant_folders(changed_files,
                                                                                  RELEVANT_TERRAFORM_FOLDERS)
+    print(f"Detected {len(relevant_changed_files)} changed file(s) relevant to Terraform: {relevant_changed_files}")
 
     available_parameter_sets: List[TerraformParameterSet] = list_all_available_parameter_sets(base_directory=base_directory)
+    print(f"Available TF stack(s) in the whole repository (useful to confirm the repo state): {available_parameter_sets}")
     # - Build set of (env / provider / layer)
     # - If env['disable-non-aws'] is present, it will not include any non-aws provider
-    terraform_parameter_sets: Set[TerraformParameterSet] = extract_terraform_parameter_sets(relevant_changed_files, available_parameter_sets)
+    terraform_parameter_sets: Set[TerraformParameterSet] = extract_terraform_parameter_sets(relevant_changed_files, available_parameter_sets, ignore_non_aws_changes)
+    print(f"Transformed the changed file(s) into the following TF stack(s) that need to be planned: {terraform_parameter_sets}")
 
     # - For every mix in step 2, run
     # 	terraform -chdir=layers/$(layer) init \
@@ -131,27 +145,47 @@ def main():
     terraform_apply_output_text: str = ""
     terraform_error_output_text: str = ""
     for parameter_set in terraform_parameter_sets:
+        os.environ["AWS_PROFILE"] = str(parameter_set.environment).lower()
+
         chdir_path = "%s/layers/%s" % (base_directory, parameter_set.layer)
+        print(f"Setting the terraform working path (chdir) to {chdir_path}")
         terraform = Terraform(working_dir=chdir_path)
         tf_layer_specific_tfvars_path: str = "%s/environments/%s/%s/backend.tfvars" % (base_directory, parameter_set.provider, parameter_set.environment)
         tf_layer_specific_key_tfstate_path: str = "key=tf-%s.tfstate" % parameter_set.layer
+        tf_vars: List[str] = [tf_layer_specific_tfvars_path, tf_layer_specific_key_tfstate_path]
+        print(f"Running Terraform Init for the following tfvars: {tf_vars}")
         init_return: Tuple[Any, str, str] = terraform.init(backend=True, reconfigure=True,
-                                                           backend_config=[tf_layer_specific_tfvars_path, tf_layer_specific_key_tfstate_path])
+                                                           backend_config=tf_vars)
+        print("::group::Terraform init output")
         print(init_return[1])
+        print("::endgroup::")
+
         terraform_error_output_text += init_return[2] + os.linesep + os.linesep
 
         tf_plan_var_file_path: str = "%s/environments/%s/%s/%s/variables.tfvars" % (base_directory, parameter_set.provider, parameter_set.environment, parameter_set.layer)
+        print(f"Running Terraform plan for the following tfvars: {tf_plan_var_file_path}")
         plan_return: Tuple[Any, str, str] = terraform.plan(var_file=tf_plan_var_file_path)
+        print("::group::Terraform plan output")
         print(plan_return[1])
+        print("::endgroup::")
         terraform_plan_output_text += plan_return[1] + os.linesep + os.linesep
         terraform_error_output_text += plan_return[2] + os.linesep + os.linesep
 
         if terraform_apply_mode:
             # 	terraform -chdir=layers/$(layer) apply --var-file=../../environments/$(provider)/$(env)/$(layer)/variables.tfvars
-            apply_return: Tuple[Any, str, str] = terraform.apply(no_color=True, input=False, var_file=tf_plan_var_file_path)
+            print(f"Running Terraform apply for the following tfvars: {tf_plan_var_file_path}")
+            apply_return: Tuple[Any, str, str] = terraform.apply(var_file=tf_plan_var_file_path)
+            print("::group::Terraform apply output")
             print(apply_return[1])
+            print("::endgroup::")
             terraform_apply_output_text += apply_return[1] + os.linesep + os.linesep
             terraform_error_output_text += apply_return[2] + os.linesep + os.linesep
+        else:
+            print("APPLY_MODE is disabled, skipping the Terraform apply step")
+
+    terraform_plan_output_text = terraform_plan_output_text.replace("\n", "%0A")
+    terraform_apply_output_text = terraform_apply_output_text.replace("\n", "%0A")
+    terraform_error_output_text = terraform_error_output_text.replace("\n", "%0A")
 
     print(f"::set-output name=terraform_plan_output::{terraform_plan_output_text}")
     print(f"::set-output name=terraform_apply_output::{terraform_apply_output_text}")
@@ -159,6 +193,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sample_input: List[str] = [".github/workflows/lint.yaml", ".github/workflows/terraform.yaml",
-                               "layers/rds-data-platform-bcp-db/main.tf"]
     main()

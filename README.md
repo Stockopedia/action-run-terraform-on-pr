@@ -1,4 +1,4 @@
-# Python Container Action Template
+# Stockopedia's Terraform PR GitHub Action
 
 [![Unit Tests](https://github.com/Stockopedia/action-run-terraform-on-pr/actions/workflows/unittests.yml/badge.svg)](https://github.com/Stockopedia/action-run-terraform-on-pr/actions/workflows/unittests.yml)
 [![Lint](https://github.com/Stockopedia/action-run-terraform-on-pr/actions/workflows/python.yml/badge.svg)](https://github.com/Stockopedia/action-run-terraform-on-pr/actions/workflows/python.yml)
