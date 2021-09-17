@@ -2,8 +2,10 @@ from typing import List, Optional, Set, Dict, Tuple
 from unittest import TestCase
 
 from src import terraform_runner
+from src.AwsCredentialsForEnvironment import AwsCredentialsForEnvironment
 from src.GithubActionException import GithubActionException
-from src.terraform_runner import TerraformParameterSet, extract_aws_credentials
+from src.TerraformParameterSet import TerraformParameterSet
+from src.terraform_runner import extract_aws_credentials
 
 
 class Test(TestCase):
@@ -40,7 +42,7 @@ class Test(TestCase):
         self.assertEqual(output, TerraformParameterSet("aws", "test", "app-database"))
 
     def test_extract_aws_credentials_empty_env_vars(self):
-        extracted_aws_credentials: Dict[str, Tuple[str, str, str]] = extract_aws_credentials({})
+        extracted_aws_credentials: Dict[str, AwsCredentialsForEnvironment] = extract_aws_credentials({})
         self.assertEqual({}, extracted_aws_credentials)
 
     def test_extract_aws_credentials_correct_env_vars(self):
@@ -52,10 +54,10 @@ class Test(TestCase):
             "AWS__SECRET__DEV": "test-secret2",
             "AWS__REGION__DEV": "test-region-1",
         }
-        extracted_aws_credentials: Dict[str, Tuple[str, str, str]] = extract_aws_credentials(correct_env_vars)
+        extracted_aws_credentials: Dict[str, AwsCredentialsForEnvironment] = extract_aws_credentials(correct_env_vars)
         expected_aws_credentials = {
-            "PROD": ("test-key", "test-secret", "test-region-1"),
-            "DEV": ("test-key2", "test-secret2", "test-region-1")
+            "PROD": AwsCredentialsForEnvironment("test-key", "test-secret", "test-region-1"),
+            "DEV": AwsCredentialsForEnvironment("test-key2", "test-secret2", "test-region-1")
         }
         self.assertEqual(expected_aws_credentials, extracted_aws_credentials)
 

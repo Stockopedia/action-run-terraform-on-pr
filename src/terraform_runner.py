@@ -1,17 +1,18 @@
 import json
 import os
 import re
-from collections import namedtuple
 from json import JSONDecodeError
 from typing import List, Tuple, Any, Optional, Iterator, Set, Dict, Match
 
 from python_terraform import Terraform
 
-from src.GithubActionException import GithubActionException
+from .GithubActionException import GithubActionException
+from .TerraformParameterSet import TerraformParameterSet
+from .AwsCredentialsForEnvironment import AwsCredentialsForEnvironment
 
 RELEVANT_TERRAFORM_FOLDERS: List[str] = ["layers", "environments"]
-TerraformParameterSet = namedtuple("TerraformParameterSet", ["provider", "environment", "layer"])
-AwsCredentialsForEnvironment = namedtuple("AwsCredentialsForEnvironment", ["api_key", "api_secret", "api_region"])
+AWS_KEY_REGEX = re.compile(r"^AWS__KEY__(\w+)", re.IGNORECASE)
+AWS_SECRET_REGEX = re.compile(r"^AWS__SECRET__(\w+)", re.IGNORECASE)
 
 
 # Sample inputs (actual values replaced by $(placeholder))
@@ -110,10 +111,8 @@ def extract_aws_credentials(environment_vars: Dict[str, Any] = os.environ.__dict
     # The output of this function is a dictionary with entries in the format: Environment -> (AWS API Key, AWS API Secret, AWS API Region)
     credentials: Dict[str, AwsCredentialsForEnvironment] = {}
     for key in environment_vars.keys():
-        if not key.upper().startswith("AWS__"):
-            continue
-        aws_key_match: Optional[Match] = re.search("^AWS__KEY__(\\w+)", key, re.IGNORECASE)
-        aws_secret_match: Optional[Match] = re.search("^AWS__SECRET__(\\w+)", key, re.IGNORECASE)
+        aws_key_match: Optional[Match] = AWS_KEY_REGEX.search(key)
+        aws_secret_match: Optional[Match] = AWS_SECRET_REGEX.search(key)
         if aws_key_match is not None:
             env_from_aws_key = aws_key_match.group(1)
             if env_from_aws_key in credentials:
