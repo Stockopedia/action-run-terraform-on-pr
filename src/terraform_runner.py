@@ -6,9 +6,9 @@ from typing import List, Tuple, Any, Optional, Iterator, Set, Dict, Match
 
 from python_terraform import Terraform
 
-from .GithubActionException import GithubActionException
-from .TerraformParameterSet import TerraformParameterSet
-from .AwsCredentialsForEnvironment import AwsCredentialsForEnvironment
+from .aws_credentials_for_environment import AwsCredentialsForEnvironment
+from .github_action_exception import GithubActionException
+from .terraform_parameter_set import TerraformParameterSet
 
 RELEVANT_TERRAFORM_FOLDERS: List[str] = ["layers", "environments"]
 AWS_KEY_REGEX = re.compile(r"^AWS__KEY__(\w+)", re.IGNORECASE)
@@ -61,8 +61,8 @@ def extract_terraform_parameter_sets(file_list: List[str], available_parameter_s
     return terraform_parameter_sets
 
 
-def extract_parameter_set_for_input(ignore_non_aws_changes: bool, available_parameter_sets: List[TerraformParameterSet], provider: Optional[str], environment: Optional[str], layer: Optional[str]) -> Optional[
-    TerraformParameterSet]:
+def extract_parameter_set_for_input(ignore_non_aws_changes: bool, available_parameter_sets: List[TerraformParameterSet], provider: Optional[str], environment: Optional[str], layer: Optional[str]) \
+        -> Optional[TerraformParameterSet]:
     # We perform this step in case we only have partial inputs. We'll use that partial input and identify a TerraformParameterSet which matches
     parameter_set_for_given_layer: Optional[TerraformParameterSet] = find_suitable_parameter_set_for_input(available_parameter_sets=available_parameter_sets, provider=provider, environment=environment, layer=layer)
     # If we need to ignore non-aws changes, only let aws ones through. Otherwise, let all.

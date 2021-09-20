@@ -2,9 +2,9 @@ from typing import List, Optional, Set, Dict, Tuple
 from unittest import TestCase
 
 from src import terraform_runner
-from src.AwsCredentialsForEnvironment import AwsCredentialsForEnvironment
-from src.GithubActionException import GithubActionException
-from src.TerraformParameterSet import TerraformParameterSet
+from src.aws_credentials_for_environment import AwsCredentialsForEnvironment
+from src.github_action_exception import GithubActionException
+from src.terraform_parameter_set import TerraformParameterSet
 from src.terraform_runner import extract_aws_credentials
 
 
