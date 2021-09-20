@@ -1,14 +1,18 @@
 import json
 import os
 import re
-from collections import namedtuple
 from json import JSONDecodeError
-from typing import List, Tuple, Any, Optional, Iterator, Set
+from typing import List, Tuple, Any, Optional, Iterator, Set, Dict, Match
 
 from python_terraform import Terraform
 
+from .aws_credentials_for_environment import AwsCredentialsForEnvironment
+from .github_action_exception import GithubActionException
+from .terraform_parameter_set import TerraformParameterSet
+
 RELEVANT_TERRAFORM_FOLDERS: List[str] = ["layers", "environments"]
-TerraformParameterSet = namedtuple("TerraformParameterSet", ["provider", "environment", "layer"])
+AWS_KEY_REGEX = re.compile(r"^AWS__KEY__(\w+)", re.IGNORECASE)
+AWS_SECRET_REGEX = re.compile(r"^AWS__SECRET__(\w+)", re.IGNORECASE)
 
 
 # Sample inputs (actual values replaced by $(placeholder))
@@ -57,7 +61,8 @@ def extract_terraform_parameter_sets(file_list: List[str], available_parameter_s
     return terraform_parameter_sets
 
 
-def extract_parameter_set_for_input(ignore_non_aws_changes: bool, available_parameter_sets: List[TerraformParameterSet], provider: Optional[str], environment: Optional[str], layer: Optional[str]) -> Optional[TerraformParameterSet]:
+def extract_parameter_set_for_input(ignore_non_aws_changes: bool, available_parameter_sets: List[TerraformParameterSet], provider: Optional[str], environment: Optional[str], layer: Optional[str]) \
+        -> Optional[TerraformParameterSet]:
     # We perform this step in case we only have partial inputs. We'll use that partial input and identify a TerraformParameterSet which matches
     parameter_set_for_given_layer: Optional[TerraformParameterSet] = find_suitable_parameter_set_for_input(available_parameter_sets=available_parameter_sets, provider=provider, environment=environment, layer=layer)
     # If we need to ignore non-aws changes, only let aws ones through. Otherwise, let all.
@@ -99,9 +104,48 @@ def find_suitable_parameter_set_for_input(available_parameter_sets: List[Terrafo
     return None
 
 
+def extract_aws_credentials(environment_vars: Dict[str, Any] = os.environ.__dict__) -> Dict[str, AwsCredentialsForEnvironment]:
+    # Detect AWS credentials, for one or more environments (dev/staging/prod, us/eu/asia, etc)
+    # The generic format is AWS__(KEY/SECRET)__[profile]. Examples: AWS__KEY__TEST / AWS__SECRET__TEST.
+
+    # The output of this function is a dictionary with entries in the format: Environment -> (AWS API Key, AWS API Secret, AWS API Region)
+    credentials: Dict[str, AwsCredentialsForEnvironment] = {}
+    for key in environment_vars.keys():
+        aws_key_match: Optional[Match] = AWS_KEY_REGEX.search(key)
+        aws_secret_match: Optional[Match] = AWS_SECRET_REGEX.search(key)
+        if aws_key_match is not None:
+            env_from_aws_key = aws_key_match.group(1)
+            if env_from_aws_key in credentials:
+                # The credentials for the current environment have already been set
+                continue
+            if f"AWS__SECRET__{env_from_aws_key}" not in environment_vars or f"AWS__REGION__{env_from_aws_key}" not in environment_vars:
+                raise GithubActionException(
+                    f"One of the required AWS credentials is missing for environment: {env_from_aws_key}. Required: 'AWS__KEY__{env_from_aws_key}', 'AWS__SECRET__{env_from_aws_key}', 'AWS__REGION__{env_from_aws_key}'")
+
+            aws_key_for_environment = environment_vars[aws_key_match.group(0)]
+            aws_secret_for_environment = environment_vars[f"AWS__SECRET__{env_from_aws_key}"]
+            aws_region_for_environment = environment_vars[f"AWS__REGION__{env_from_aws_key}"]
+            credentials[env_from_aws_key] = AwsCredentialsForEnvironment(aws_key_for_environment, aws_secret_for_environment, aws_region_for_environment)
+        if aws_secret_match is not None:
+            env_from_aws_secret = aws_secret_match.group(1)
+            if env_from_aws_secret in credentials:
+                # The credentials for the current environment have already been set
+                continue
+            if f"AWS__KEY__{env_from_aws_secret}" not in environment_vars or f"AWS__REGION__{env_from_aws_secret}" not in environment_vars:
+                raise GithubActionException(
+                    f"One of the required AWS credentials is missing for environment: {env_from_aws_secret}. Required: 'AWS__KEY__{env_from_aws_secret}', 'AWS__SECRET__{env_from_aws_secret}', 'AWS__REGION__{env_from_aws_secret}'")
+
+            aws_key_for_environment = environment_vars[f"AWS__KEY__{env_from_aws_secret}"]
+            aws_secret_for_environment = environment_vars[aws_secret_match.group(0)]
+            aws_region_for_environment = environment_vars[f"AWS__REGION__{aws_key_for_environment}"]
+            credentials[env_from_aws_secret] = AwsCredentialsForEnvironment(aws_key_for_environment, aws_secret_for_environment, aws_region_for_environment)
+    return credentials
+
+
 def main():
+    # Checking that "CHANGED_FILE_LIST" is present in the with: input
     if 'INPUT_CHANGED_FILE_LIST' not in os.environ:
-        raise Exception("Could not find INPUT_CHANGED_FILE_LIST set in the environment variables.")
+        raise Exception("Could not find CHANGED_FILE_LIST set in the input (the with: block) variables.")
 
     # - Take input from https://github.com/Stockopedia/action-get-changed-files
     # Example: [".github/workflows/lint.yaml",".github/workflows/terraform.yaml",".github/workflows/terraform_apply.yaml","layers/rds-data-platform-bcp-db/main.tf"]
@@ -120,6 +164,9 @@ def main():
 
     # This determines if the Terraform plan/apply should include non-AWS providers. This may be useful if the Terraform runner has access to the AWS account, but not to the rest of the stack (EC2, RDS)
     ignore_non_aws_changes: bool = "INPUT_DISABLE_NON_AWS_CHANGES" in os.environ
+
+    # The output of this function is a dictionary with entries in the format: Environment -> AwsCredentialsForEnvironment(AWS API Key, AWS API Secret, AWS API Region)
+    aws_credentials_for_environments: Dict[str, AwsCredentialsForEnvironment] = extract_aws_credentials(os.environ.__dict__)
 
     print(f"Running the script for file(s): {changed_files}")
     # Filter by whitelist folder, e.g.: layers/*
@@ -146,6 +193,9 @@ def main():
     terraform_error_output_text: str = ""
     for parameter_set in terraform_parameter_sets:
         os.environ["AWS_PROFILE"] = str(parameter_set.environment).lower()
+        os.environ['AWS_ACCESS_KEY_ID'] = str(aws_credentials_for_environments[parameter_set.environment].api_key)
+        os.environ['AWS_SECRET_ACCESS_KEY'] = str(aws_credentials_for_environments[parameter_set.environment].api_secret)
+        os.environ['AWS_DEFAULT_REGION'] = str(aws_credentials_for_environments[parameter_set.environment].api_region)
 
         chdir_path = "%s/layers/%s" % (base_directory, parameter_set.layer)
         print(f"Setting the terraform working path (chdir) to {chdir_path}")
