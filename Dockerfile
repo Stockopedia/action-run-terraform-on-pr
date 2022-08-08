@@ -1,4 +1,4 @@
-FROM python:3.9.7-slim AS builder
+FROM python:3.10.6-slim AS builder
 ADD . /app
 WORKDIR /app
 RUN apt-get update && apt-get -y dist-upgrade
